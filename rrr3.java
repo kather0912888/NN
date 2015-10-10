@@ -5,9 +5,11 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import javax.xml.crypto.Data;
+
 //import NeuralNetwork.NN;
 
-public class rrr {
+public class rrr3 {
 	static // features to phoneme & stress table
 	HashMap<String, String> map = new HashMap<>();
 
@@ -268,10 +270,15 @@ public class rrr {
 		// [ - - - p - - - ] , [ feature ]
 
 		// for each char in word
+		int iForOutput = 0;
 		for (int i = 0; i < word.length(); i++) {
+			// 如果word.charAt(i)不是c就換下一個
+			// if (word.charAt(i) != 'c')
+			// continue;
+			// System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 			// 先寫入答案
-			output[i][1] = phonemeToFeatures(phoneme.charAt(i), stress.charAt(i));
-			output[i][0] = new double[203];
+			output[iForOutput][1] = phonemeToFeatures(phoneme.charAt(i), stress.charAt(i));
+			output[iForOutput][0] = new double[203];
 			// 再寫入輸入
 			int nowPtr = 0;
 			for (int p = i - 3; p <= i + 3; p++) {
@@ -280,25 +287,100 @@ public class rrr {
 					double[] temp = symbolToArray(' ');
 					int ptr = 0;
 					for (int j = 0; j < temp.length; j++)
-						output[i][0][nowPtr++] = temp[j];
+						output[iForOutput][0][nowPtr++] = temp[j];
 				} else {
 					double[] temp = symbolToArray(word.charAt(p));
 					int ptr = 0;
 					for (int j = 0; j < temp.length; j++)
-						output[i][0][nowPtr++] = temp[j];
+						output[iForOutput][0][nowPtr++] = temp[j];
 				}
 			}
+			iForOutput++;
 		}
-		return output;
+		double[][][] realOutput = new double[iForOutput][2][];
+		for (int i = 0; i < realOutput.length; i++)
+			for (int j = 0; j < realOutput[i].length; j++) {
+				realOutput[i][j] = new double[output[i][j].length];
+				for (int k = 0; k < realOutput[i][j].length; k++)
+					realOutput[i][j][k] = output[i][j][k];
+			}
+		return realOutput;
 	}
 
-	public static void readTrainingAndTestingData(int t, int p, ArrayList<double[][]> training,
-			ArrayList<double[][]> testing, BufferedReader reader) throws IOException {
+	private static double[][][] preprocessForPhoneme(char singlePhoneme, String word, String phoneme, String stress,
+			int[] emphisized) {
+		// prepare the output
+		double[][][] output = new double[word.length()][2][];
+		// emphisized = new int[word.length()];
+		// [ - - - p - - - ] , [ feature ]
+
+		// for each char in word
+		int iForOutput = 0;
+		for (int i = 0; i < word.length(); i++) {
+			// 如果word.charAt(i)不是c就換下一個
+			if (phoneme.charAt(i) != singlePhoneme)
+				continue;
+			// TODO i要保留
+			emphisized[iForOutput] = i;
+			// 先寫入答案
+			output[iForOutput][1] = phonemeToFeatures(phoneme.charAt(i), stress.charAt(i));
+			output[iForOutput][0] = new double[203];
+			// 再寫入輸入
+			int nowPtr = 0;
+			for (int p = i - 3; p <= i + 3; p++) {
+				// 如果p只到的地方是錯誤的 -> 空白
+				if (p < 0 || p >= word.length()) {
+					double[] temp = symbolToArray(' ');
+					int ptr = 0;
+					for (int j = 0; j < temp.length; j++)
+						output[iForOutput][0][nowPtr++] = temp[j];
+				} else {
+					double[] temp = symbolToArray(word.charAt(p));
+					int ptr = 0;
+					for (int j = 0; j < temp.length; j++)
+						output[iForOutput][0][nowPtr++] = temp[j];
+				}
+			}
+			iForOutput++;
+		}
+		double[][][] realOutput = new double[iForOutput][2][];
+		for (int i = 0; i < realOutput.length; i++)
+			for (int j = 0; j < realOutput[i].length; j++) {
+				realOutput[i][j] = new double[output[i][j].length];
+				for (int k = 0; k < realOutput[i][j].length; k++)
+					realOutput[i][j][k] = output[i][j][k];
+			}
+		return realOutput;
+	}
+
+	static class EmphisizedString {
+		String str;
+		int ptr;
+
+		public EmphisizedString(String s, int i) {
+			str = s;
+			ptr = i;
+		}
+
+		public String emphisize() {
+			String r = "";
+			for (int i = 0; i < str.length(); i++) {
+				if (i != ptr)
+					r += str.charAt(i);
+				else
+					r += "[" + str.charAt(i) + "]";
+			}
+			return r;
+		}
+	}
+
+	public static void readData(char singlePhoneme,int t, ArrayList<double[][]> DataSet, ArrayList<EmphisizedString> WordDataSet,
+			ArrayList<double[][]> EDataSet,
+
+	BufferedReader reader) throws IOException {
 		String line;
 		int w = 0;
-		int words = t + p;
-		if (p != 0)
-			p = words / p;
+		int words = t;
 		while ((line = reader.readLine()) != null && w++ <= words) {
 			String item[] = line.split("\t");
 			for (int i = 0; i < item.length; i += 4) {
@@ -311,183 +393,92 @@ public class rrr {
 					System.out.println(word);
 					// for each word, we can define several inputs and
 					// outputs.
+
+					// 一般資料
 					double[][][] pairs = preprocess(word, pronounce, pitch);
-					if (p == 0) {
-						for (double[][] data : pairs)
-							training.add(data);
-					} else {
-						if (w % p != 0) {
-							for (double[][] data : pairs)
-								training.add(data);
-						} else {
-							for (double[][] data : pairs)
-								testing.add(data);
-						}
+					// 發音為E的資料
+					int[] emph = new int[word.length()];
+					double[][][] pairsE = preprocessForPhoneme(singlePhoneme, word, pronounce, pitch, emph);
+
+					for (double[][] data : pairs)
+						DataSet.add(data);
+
+					for (int j = 0; j < pairsE.length; j++) {
+						WordDataSet.add(new EmphisizedString(word, emph[j]));
+						System.out.println(emph[j]);
+						EDataSet.add(pairsE[j]);
 					}
+
 				} catch (Exception e) {
 				}
 			}
 		}
 	}
 
-	public static ArrayList<double[][]> extractLetterCData(ArrayList<double[][]> input){
+	public static ArrayList<double[][]> extractLetterCData(ArrayList<double[][]> input) {
 		ArrayList<double[][]> r = new ArrayList<double[][]>();
-		for(double[][] d : input){
+		for (double[][] d : input) {
 			// 若d[0][] == letter C , 則加入
-			
+
 			// 29*3 -> 指到中間字母的第0個element
-			if(d[0][29*3-'a'+'c']==1){
+			if (d[0][29 * 3 - 'a' + 'c'] == 1) {
 				r.add(d);
 			}
 		}
 		return r;
 	}
-	
+
 	public static void main(String[] args) throws IOException {
 
 		// 訓練單字量
-		int numOfTrainingData = 1000;
-		int numOfTestingData = 10;
-
-		// 每訓練幾次畫一次圖?
-		int drawGap = 500;
-		// 訓練幾次?
+		int numOfTrainingData = 20000;
+		// 訓練次數	(每字一次, 例如訓練單字量10, 訓練次數20, 那麼每個字會被訓練2次)
 		int maxTrainingTime = 30000;
 
-		// 長條圖 * 5
-		lineChart chart = new lineChart("比對圖");
-		lineChart damagedChart = new lineChart("損毀/效率比對圖");
-		lineChart retrainingChart = new lineChart("重新訓練圖");
-		lineChart diffChart = new lineChart("五台NN比對圖");
-		lineChart letterCChart = new lineChart("對於字母C的發音");
 
-		// 基本架構的機器, 學習率0.1, 查看訓練速度、傷害影響、重新訓練速度
+		// 神經網路
 		NN nn = new NN(new int[] { 203, 80, 26 });
 		nn.setLearningRate(.1);
 
-		// 五台不同架構的神經網路機器, 學習率0.1, 查看各種架構的表現差異
-		NN[] differentNNs = new NN[5];
-		differentNNs[0] = new NN(new int[] { 203, 26 });
-		differentNNs[1] = new NN(new int[] { 203, 15, 26 });
-		differentNNs[2] = new NN(new int[] { 203, 30, 26 });
-		differentNNs[3] = new NN(new int[] { 203, 60, 26 });
-		differentNNs[4] = new NN(new int[] { 203, 120, 26 });
-		for (NN n : differentNNs)
-			n.setLearningRate(.1);
-		
-		// 只學習中間字母為C的輸入之神經網路
-		NN nOfLetterC = new NN(new int[] { 203, 80, 26 });
-		nOfLetterC.setLearningRate(.1);
+		// 訓練集
+		ArrayList<double[][]> DataSet = new ArrayList<>();
+		// 特定發音
+		char specificPhoneme = 'm';
+		// 長條圖
+		lineChart letterCChart = new lineChart("對於發音/"+specificPhoneme+"/, 各個字在神經網路隱藏層中的表現");
+		// 特定發音的輸入集合
+		ArrayList<double[][]> specificPhonemeDataSet = new ArrayList<>();
+		// 特定發音的輸入集合 之 對應單字 的集合
+		ArrayList<EmphisizedString> specificWordDataSet = new ArrayList<>();
 
-		// 準備input
-		ArrayList<double[][]> trainingDataSet = new ArrayList<>();
-		ArrayList<double[][]> testingDataSet = new ArrayList<>();
 		BufferedReader reader = new BufferedReader(new FileReader("nettalk.txt"));
-		readTrainingAndTestingData(numOfTrainingData, numOfTestingData, trainingDataSet, testingDataSet, reader);
+		readData(specificPhoneme,numOfTrainingData, DataSet, specificWordDataSet, specificPhonemeDataSet, reader);
 		reader.close();
-		
-		// 把data放入神經網路內
-		for (double[][] data : trainingDataSet)
+
+		System.out.println("訓練集大小:"+DataSet.size());
+		System.out.println("發音為"+specificPhoneme+"之輸入共有"+specificPhonemeDataSet.size()+"個");
+		// 把data放入只訓練中間字母為C的神經網路中
+		for (double[][] data : DataSet)
 			nn.addTrainingSample(data[0], data[1]);
-		for (double[][] data : testingDataSet)
-			nn.addTestingSample(data[0], data[1]);
-
-//		// 開始訓練, 直到誤差小於0.01
-		int trainedTimes = 0;
-		do {
-			if (trainedTimes % drawGap == 0) {
-				double a = nn.getTrainingSetAccuracyRate(0.1, 0, 20);
-//				double b = nn.getTestingSetAccuracyRate(0.1, 0, 20);
-				double c = nn.getTrainingSetAccuracyRate(0.1, 21, 25);
-//				double d = nn.getTestingSetAccuracyRate(0.1, 21, 25);
-
-				chart.addData(new double[] { trainedTimes, a }, "training set : phoneme");
-//				chart.addData(new double[] { trainedTimes, b }, "testinging set : phoneme");
-				chart.addData(new double[] { trainedTimes, c }, "training set : syllable");
-//				chart.addData(new double[] { trainedTimes, d }, "testing set : syllable");
-				chart.setVisible(true);
-				chart.redraw();
-			}
-			trainedTimes++;
-			nn.learnFromSingleTrainingData();
-		} while (trainedTimes < maxTrainingTime);
-
-		// 開始催毀, 直到一半的weights都摧毀
-		System.out.println("開始損毀神經");
-		double damaged = .01;
-		do {
-			nn.damage(damaged);
-			double a = nn.getTrainingSetAccuracyRate(0.1, 0, 20);
-//			double b = nn.getTestingSetAccuracyRate(0.1, 0, 20);
-			double c = nn.getTrainingSetAccuracyRate(0.1, 21, 25);
-//			double d = nn.getTestingSetAccuracyRate(0.1, 21, 25);
-			
-			damaged += .01;
-			damagedChart.addData(new double[] { damaged, a }, "training set : phoneme");
-//			damagedChart.addData(new double[] { damaged, b }, "testinging set : phoneme");
-			damagedChart.addData(new double[] { damaged, c }, "training set : syllable");
-//			damagedChart.addData(new double[] { damaged, d }, "testing set : syllable");
-			damagedChart.setVisible(true);
-			damagedChart.redraw();
-		} while (damaged < 0.3);
-
-		// 重新訓練
-		trainedTimes = 0;
-		do {
-			if (trainedTimes % drawGap == 0) {
-				double a = nn.getTrainingSetAccuracyRate(0.1, 0, 20);
-//				double b = nn.getTestingSetAccuracyRate(0.1, 0, 20);
-				double c = nn.getTrainingSetAccuracyRate(0.1, 21, 25);
-//				double d = nn.getTestingSetAccuracyRate(0.1, 21, 25);
-
-				retrainingChart.addData(new double[] { trainedTimes, a }, "training set : phoneme");
-//				retrainingChart.addData(new double[] { trainedTimes, b }, "testinging set : phoneme");
-				retrainingChart.addData(new double[] { trainedTimes, c }, "training set : syllable");
-//				retrainingChart.addData(new double[] { trainedTimes, d }, "testing set : syllable");
-				retrainingChart.setVisible(true);
-				retrainingChart.redraw();
-			}
-			trainedTimes++;
-			nn.learnFromSingleTrainingData();
-		} while (trainedTimes < maxTrainingTime);
-
-		// 查看五台不同架構神經網路的差異
-
-		// 把data放入五台神經網路內
-		for (double[][] data : trainingDataSet)
-			for (NN n : differentNNs)
-				n.addTrainingSample(data[0], data[1]);
-		for (double[][] data : testingDataSet)
-			for (NN n : differentNNs)
-				n.addTestingSample(data[0], data[1]);
 
 		// 開始訓練
-		// 開始訓練, 直到誤差小於0.01
-		trainedTimes = 0;
+		int trainedTimes = 0;
 		do {
-			if (trainedTimes % drawGap == 0) {
-				for (NN n : differentNNs) {
-					double a = n.getTrainingSetAccuracyRate(0.1, 0, 20);
-//					double b = n.getTestingSetAccuracyRate(0.1, 0, 20);
-					double c = n.getTrainingSetAccuracyRate(0.1, 21, 25);
-//					double d = n.getTestingSetAccuracyRate(0.1, 21, 25);
-
-					diffChart.addData(new double[] { trainedTimes, a },
-							n.getHiddenLayerSize(1) + "training set : phoneme");
-//					diffChart.addData(new double[] { trainedTimes, b },
-//							n.getHiddenLayerSize(1) + " testinging set : phoneme");
-					diffChart.addData(new double[] { trainedTimes, c },
-							n.getHiddenLayerSize(1) + "training set : syllable");
-//					diffChart.addData(new double[] { trainedTimes, d },
-//							n.getHiddenLayerSize(1) + " testing set : syllable");
-				}
-				diffChart.setVisible(true);
-				diffChart.redraw();
-			}
 			trainedTimes++;
-			for (NN n : differentNNs)
-				n.learnFromSingleTrainingData();
+			nn.learnFromSingleTrainingData();
 		} while (trainedTimes < maxTrainingTime);
-		
+		System.out.println("訓練完成");
+		// 看amount個
+		int amount = 15;
+		int yIncrease = 0;
+		for (int i = 0; i < specificWordDataSet.size(); i += specificWordDataSet.size() / amount) {
+			double[] hidden = nn.getHiddenLayerActLevelToInput(1, specificPhonemeDataSet.get(i)[0]);
+			for (int j = 0; j < hidden.length; j++) {
+				letterCChart.addData(new double[] { j, hidden[j] + (yIncrease) }, specificWordDataSet.get(i).emphisize());
+			}
+			yIncrease++;
+			letterCChart.setVisible(true);
+			letterCChart.redraw();
+		}
 	}
 }

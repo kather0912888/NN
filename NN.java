@@ -26,6 +26,14 @@ public class NN {
 	
 	HashMap<String,Boolean> damagedTable = new HashMap<>();
 	
+	public double[] getHiddenLayerActLevelToInput(int l,double[] input){
+		if(l<=0 || l>=layers.length-1)
+			return null;
+		for (int ll = 1; ll <= l; ll++)
+			input = theta(input, weights[ll]);
+		return input;
+	}
+	
 	public int getHiddenLayerSize(int l){
 		if(l==0 || l>=layers.length-1)
 			return 0;

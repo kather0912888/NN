@@ -262,7 +262,7 @@ public class rrr2 {
 		return r;
 	}
 
-	private static double[][][] preprocessForC(String word, String phoneme, String stress) {
+	private static double[][][] preprocess(String word, String phoneme, String stress) {
 		// prepare the output
 		double[][][] output = new double[word.length()][2][];
 		// [ - - - p - - - ] , [ feature ]
@@ -395,7 +395,7 @@ public class rrr2 {
 		return realOutput;
 	}
 
-	public static void readCData(int t, ArrayList<double[][]> CDataSet, ArrayList<double[][]> CkDataSet,
+	public static void readData(int t, ArrayList<double[][]> CDataSet, ArrayList<double[][]> CkDataSet,
 			ArrayList<double[][]> CsDataSet,
 
 	BufferedReader reader) throws IOException {
@@ -415,8 +415,8 @@ public class rrr2 {
 					// for each word, we can define several inputs and
 					// outputs.
 
-					// 中間為C的資料
-					double[][][] pairsC = preprocessForC(word, pronounce, pitch);
+					// 一般資料
+					double[][][] pairsC = preprocess(word, pronounce, pitch);
 					// 中間為C發音為k的資料
 					double[][][] pairsCk = preprocessForCk(word, pronounce, pitch);
 					// 中間為C發音為s的資料
@@ -460,36 +460,36 @@ public class rrr2 {
 		// 長條圖
 		lineChart letterCChart = new lineChart("對於字母C的發音");
 
-		// 只學習中間字母為C的輸入之神經網路
-		NN nOfLetterC = new NN(new int[] { 203, 80, 26 });
-		nOfLetterC.setLearningRate(.1);
+		// 神經網路
+		NN nn = new NN(new int[] { 203, 80, 26 });
+		nn.setLearningRate(.1);
 
-		// 準備中間字母為'c'的訓練集
-		ArrayList<double[][]> CDataSet = new ArrayList<>();
+		// 訓練集
+		ArrayList<double[][]> DataSet = new ArrayList<>();
 		// 中間字母為'c'且發音為'k'的集合
 		ArrayList<double[][]> CkDataSet = new ArrayList<>();
 		// 中間字母為'c'且發音為's'的集合
 		ArrayList<double[][]> CsDataSet = new ArrayList<>();
 		BufferedReader reader = new BufferedReader(new FileReader("nettalk.txt"));
-		readCData(numOfTrainingData, CDataSet, CkDataSet, CsDataSet, reader);
+		readData(numOfTrainingData, DataSet, CkDataSet, CsDataSet, reader);
 		reader.close();
 
-		System.out.println(CDataSet.size());
+		System.out.println(DataSet.size());
 		System.out.println(CkDataSet.size());
 		System.out.println(CsDataSet.size());
 		// 把data放入只訓練中間字母為C的神經網路中
-		for (double[][] data : CDataSet)
-			nOfLetterC.addTrainingSample(data[0], data[1]);
+		for (double[][] data : DataSet)
+			nn.addTrainingSample(data[0], data[1]);
 
 		// 開始訓練
 		int trainedTimes = 0;
 		do {
 			if (trainedTimes % drawGap == 0) {
-				double a = nOfLetterC.getOuterSetAccuracyRate(CkDataSet,0.1, 0, 20);
-				double b = nOfLetterC.getOuterSetAccuracyRate(CsDataSet,0.1, 0, 20);
+				double a = nn.getOuterSetAccuracyRate(CkDataSet,0.1, 0, 20);
+				double b = nn.getOuterSetAccuracyRate(CsDataSet,0.1, 0, 20);
 				// double b = n.getTestingSetAccuracyRate(0.1, 0, 20);
-				double c = nOfLetterC.getOuterSetAccuracyRate(CkDataSet,0.1, 21, 25);
-				double d = nOfLetterC.getOuterSetAccuracyRate(CsDataSet,0.1, 21, 25);
+				double c = nn.getOuterSetAccuracyRate(CkDataSet,0.1, 21, 25);
+				double d = nn.getOuterSetAccuracyRate(CsDataSet,0.1, 21, 25);
 				// double d = n.getTestingSetAccuracyRate(0.1, 21, 25);
 
 				letterCChart.addData(new double[] { trainedTimes, a }, "k : phoneme");
@@ -500,7 +500,7 @@ public class rrr2 {
 				letterCChart.redraw();
 			}
 			trainedTimes++;
-			nOfLetterC.learnFromSingleTrainingData();
+			nn.learnFromSingleTrainingData();
 		} while (trainedTimes < maxTrainingTime);
 
 	}
